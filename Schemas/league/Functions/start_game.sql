@@ -21,7 +21,7 @@ The return value tells the zone if it should continue or abort.
 
 TODO: If we want to allow captains to start a game, then we'll have to also check the game_timestamp too.
 
-Normally, the game will be in the "In Progress" state when this is called.
+Normally, the game will be in the "Pending" state when this is called.
 Alternatively, if the game already is "In Progress", it can be overriden with the p_force parameter.
 This might be useful if the game was rescheduled or there was a problem such as the zone server crashing.
 The idea is that a league referee could force restart a match (perhaps a command like: ?startleaguegame -f <season game id>).

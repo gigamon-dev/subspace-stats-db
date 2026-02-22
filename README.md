@@ -2,13 +2,13 @@
 
 This is a database for storing stats about games played using the matchmaking modules included with [Subspace Server .NET](https://github.com/gigamon-dev/SubspaceServer) zone server. To view the data, the [subspace-stats-web](https://github.com/gigamon-dev/subspace-stats-web) application can be used.
 
-The matchmaking modules included in Subspace Server .NET can be used without a database. However, even more functionality is gained when using a database. For example, the ability to balance teams based on player stats. This database is a baseline implementation designed to be used with the `SS.Matchmaking.Modules.PostgreSqlGameStats` module.
+The matchmaking modules included in Subspace Server .NET can be used without a database. However, even more functionality is gained when using this database. For example, the ability to balance teams based on player stats. This database is a baseline implementation designed to be used with the `SS.Matchmaking.Modules.PostgreSqlGameStats` module.
 
 ## Installation
 
 Install [PostgreSQL](https://www.postgresql.org).
 
-> The following instructions explain how to set up the database for Linux. For other environments it should be similar, but won't exactly match what's shown here.
+> The following instructions explain how to set up the database on Linux. For other environments it should be similar, but may not exactly match what's shown here.
 
 ### Open the `psql` terminal
 
@@ -37,6 +37,7 @@ Next, let's create roles for the database. Here are the roles we'll be creating,
 | `ss_developer` | Group for managing permissions of developers. Owner of all the database objects. You can create a user name for yourself and make it a member of this role, rather than use the `postgres` superuser account. |
 | `ss_web_server` | Group for managing permissions to the web server. |
 | `ss_zone_server` | Group for managing permissions to the zone server. |
+| `ss_identity` | Group for managing permissions to the web server for ASP.NET Core Identity |
 
 In the `psql` terminal, create the roles by running the following commands:
 
@@ -64,45 +65,22 @@ CREATE ROLE ss_zone_server WITH
   NOCREATEDB
   NOCREATEROLE
   NOREPLICATION;
-```
 
-It will look like:
-
-```
-postgres=# CREATE ROLE ss_developer WITH
+CREATE ROLE ss_identity WITH
   NOLOGIN
   NOSUPERUSER
   INHERIT
   NOCREATEDB
   NOCREATEROLE
   NOREPLICATION;
-
-CREATE ROLE ss_web_server WITH
-  NOLOGIN
-  NOSUPERUSER
-  INHERIT
-  NOCREATEDB
-  NOCREATEROLE
-  NOREPLICATION;
-
-CREATE ROLE ss_zone_server WITH
-  NOLOGIN
-  NOSUPERUSER
-  INHERIT
-  NOCREATEDB
-  NOCREATEROLE
-  NOREPLICATION;
-CREATE ROLE
-CREATE ROLE
-CREATE ROLE
-
+ALTER ROLE ss_identity SET search_path = aspnet_core_identity;
 ```
 
 ### Create Users
 
 Create users with the roles by running the following commands:
 
-> These user names are for the web server and zone server to connect with. You can use different names. Just remember to use them when configuring the web app and zone server.
+> These user names are for the web server and zone server to connect with. You can use different names. Just remember to use them when configuring the web app and zone server connection strings.
 
 > **IMPORTANT: Remember to replace the passwords with your own.**
 
@@ -111,19 +89,9 @@ CREATE USER webuser WITH PASSWORD 'changeme';
 GRANT ss_web_server TO webuser;
 CREATE USER zoneuser WITH PASSWORD 'changeme';
 GRANT ss_zone_server TO zoneuser;
-```
-
-It will look like:
-
-```
-postgres=# CREATE USER webuser WITH PASSWORD 'changeme';
-GRANT ss_web_server TO webuser;
-CREATE USER zoneuser WITH PASSWORD 'changeme';
-GRANT ss_zone_server TO zoneuser;
-CREATE ROLE
-GRANT
-CREATE ROLE
-GRANT
+CREATE USER identityuser WITH PASSWORD 'changeme';
+ALTER ROLE identityuser SET search_path = aspnet_core_identity;
+GRANT ss_identity TO identityuser;
 ```
 
 Optionally, you can create a user name for yourself and assign it the `ss_developer` role. To do that, the SQL to run will look something like:
@@ -148,21 +116,28 @@ ALTER DATABASE subspacestats
     SET search_path TO ss;
 ```
 
-> You can specify a different database name if that's what you prefer.
+> You can specify a different database name if that's what you prefer. Just remember to use the name in your web app and zone server connection strings.
 
-It will look like:
+### Create the schema for ASP.NET Core Identity
 
+In the `psql` terminal, switch to the database
 ```
-postgres=# CREATE DATABASE subspacestats
-    WITH
-    OWNER = ss_developer
-    ENCODING = 'UTF8'
-    LOCALE_PROVIDER = 'libc';
+\c subspacestats
+```
 
-ALTER DATABASE subspacestats
-    SET search_path TO ss;
-CREATE DATABASE
-ALTER DATABASE
+It'll look like:
+```
+postgres=# \c subspacestats
+You are now connected to database "subspacestats" as user "<current user>".
+```
+
+In the `psql` terminal, run the following to create the schema within the subspace stats database:
+
+```SQL
+CREATE SCHEMA aspnet_core_identity
+  AUTHORIZATION ss_identity;
+
+GRANT ALL ON SCHEMA aspnet_core_identity TO ss_identity;
 ```
 
 ### Close the `psql` terminal

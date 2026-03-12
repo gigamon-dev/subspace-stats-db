@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS ss.stat_period
     stat_tracking_id bigint NOT NULL,
     period_range tstzrange NOT NULL,
     CONSTRAINT stat_period_pkey PRIMARY KEY (stat_period_id),
-    CONSTRAINT stat_period_stat_tracking_id_period_range_key UNIQUE (stat_tracking_id, period_range),
     CONSTRAINT stat_period_stat_tracking_id_fkey FOREIGN KEY (stat_tracking_id)
         REFERENCES ss.stat_tracking (stat_tracking_id) MATCH SIMPLE
         ON UPDATE NO ACTION

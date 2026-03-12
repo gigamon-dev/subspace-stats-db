@@ -8,6 +8,10 @@ set search_path = league, pg_temp
 as
 $$
 
+/*
+Ends a season by setting the season's end date and the associated stat period's the upper bound.
+*/
+
 declare
 	l_end_timestamp timestamptz;
 begin
@@ -18,11 +22,13 @@ begin
 				from(
 					select sg.game_timestamp
 					from league.season_game as sg
+					where sg.season_id = p_season_id
 					union 
 					select upper(g.time_played)
 					from league.season_game as sg2
 					inner join ss.game as g
 						on sg2.game_id = g.game_id
+					where sg2.season_id = p_season_id
 				) as dt
 			 )
 			,current_timestamp

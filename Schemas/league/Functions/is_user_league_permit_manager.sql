@@ -1,4 +1,4 @@
-create function league.is_user_league_permit_manager(
+create or replace function league.is_user_league_permit_manager(
 	 p_user_id text
 	,p_league_id league.league.league_id%type
 )
@@ -8,6 +8,10 @@ security definer
 set search_path = league, pg_temp
 as
 $$
+
+/*
+Gets whether a user is a 'Permit Manager' of a league.
+*/
 
 select
 	exists(

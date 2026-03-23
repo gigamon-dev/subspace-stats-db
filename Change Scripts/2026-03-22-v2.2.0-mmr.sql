@@ -1,3 +1,116 @@
+-- This script upgrades v2.1.0 to v2.2.0
+
+insert into migration.db_change_log(
+	 applied_timestamp
+	,major
+	,minor
+	,patch
+	,script_file_name
+)
+values(
+	 CURRENT_TIMESTAMP
+	,2
+	,2
+	,0
+	,'v2.2.0-league.sql'
+);
+
+--
+-- Schemas/ss/Tables/player_mmr.sql
+--
+
+-- Table: ss.player_mmr
+
+-- DROP TABLE IF EXISTS ss.player_mmr;
+
+CREATE TABLE IF NOT EXISTS ss.player_mmr
+(
+    player_id bigint NOT NULL,
+    game_type_id bigint NOT NULL,
+    mu double precision NOT NULL,
+    sigma double precision NOT NULL,
+    last_updated timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT player_mmr_pkey PRIMARY KEY (player_id, game_type_id),
+    CONSTRAINT player_mmr_game_type_id_fkey FOREIGN KEY (game_type_id)
+        REFERENCES ss.game_type (game_type_id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT player_mmr_player_id_fkey FOREIGN KEY (player_id)
+        REFERENCES ss.player (player_id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS ss.player_mmr
+    OWNER to ss_developer;
+-- Index: player_mmr_game_type_id_idx
+
+-- DROP INDEX IF EXISTS ss.player_mmr_game_type_id_idx;
+
+CREATE INDEX IF NOT EXISTS player_mmr_game_type_id_idx
+    ON ss.player_mmr USING btree
+    (game_type_id ASC NULLS LAST)
+    WITH (fillfactor=100, deduplicate_items=True)
+    TABLESPACE pg_default;
+
+--
+-- Schemas/ss/Functions/get_openskill_ratings.sql
+--
+
+create or replace function ss.get_openskill_ratings(
+	 p_game_type_id ss.game_type.game_type_id%type
+	,p_player_names character varying(20)[]
+)
+returns table(
+	 player_name ss.player.player_name%type
+	,mu ss.player_mmr.mu%type
+	,sigma ss.player_mmr.sigma%type
+	,last_updated ss.player_mmr.last_updated%type
+)
+language sql
+security definer
+set search_path = ss, pg_temp
+as
+$$
+
+/*
+Gets the OpenSkill rating (mu and sigma) of a specified list of players.
+Also, the timestamp that each player last played is included, so that decay for inactivity can be calculated.
+
+Parameters:
+p_game_type_id - The type of game to get ratings for.
+p_player_names - The names of the players to get data for.
+
+Usage:
+select * from ss.get_openskill_ratings(2, '{"foo", "bar", "baz", "asdf"}');
+*/
+
+select
+	 t.player_name
+	,pm.mu
+	,pm.sigma
+	,pm.last_updated
+from unnest(p_player_names) as t(player_name)
+inner join ss.player as p
+	on t.player_name = p.player_name
+inner join ss.player_mmr as pm
+	on p.player_id = pm.player_id
+where pm.game_type_id = p_game_type_id;
+
+$$;
+
+alter function ss.get_openskill_ratings owner to ss_developer;
+
+revoke all on function ss.get_openskill_ratings from public;
+
+grant execute on function ss.get_openskill_ratings to ss_zone_server;
+
+--
+-- Schemas/ss/Functions/save_game.sql
+--
+
 create or replace function ss.save_game(
 	 p_game_json jsonb
 	,p_stat_period_id ss.stat_period.stat_period_id%type = null

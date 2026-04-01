@@ -3,6 +3,8 @@ create or replace function league.delete_season_game(
 )
 returns void
 language sql
+security definer
+set search_path = league, ss, pg_temp
 as
 $$
 

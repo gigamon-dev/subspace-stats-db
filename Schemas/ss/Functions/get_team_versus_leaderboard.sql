@@ -75,6 +75,7 @@ left outer join ss.player_rating as pr
 	on pvs.player_id = pr.player_id
 		and pvs.stat_period_id = pr.stat_period_id
 where pvs.stat_period_id = p_stat_period_id
+	and p.player_name not like '^%' -- skip unauthenticated players
 order by
 	 pr.rating desc
 	,pvs.play_duration desc

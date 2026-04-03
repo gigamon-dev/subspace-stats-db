@@ -32,29 +32,30 @@ select * from ss.get_top_versus_players_by_kills_per_minute(17, 5);
 
 select
 	 dt2.top_rank
-	,p.player_name
+	,dt2.player_name
 	,dt2.kills_per_minute
 from(
 	select
 		 dense_rank() over(order by dt.kills_per_minute desc) as top_rank
-		,dt.player_id
+		,dt.player_name
 		,dt.kills_per_minute
 	from(
 		select
-			 pvs.player_id
+			 p.player_name
 			,(pvs.kills::real / (extract(epoch from pvs.play_duration) / 60))::real as kills_per_minute
 		from ss.player_versus_stats as pvs
+		inner join ss.player as p
+			on pvs.player_id = p.player_id
 		where pvs.stat_period_id = p_stat_period_id
 			and pvs.kills > 0 -- has at least one kill
 			and pvs.games_played >= greatest(coalesce(p_min_games_played, 1), 1)
+			and p.player_name not like '^%' -- skip unauthenticated players
 	) as dt
 ) as dt2
-inner join ss.player as p
-	on dt2.player_id = p.player_id
 where dt2.top_rank <= p_top
 order by
 	 dt2.top_rank
-	,p.player_name;
+	,dt2.player_name;
 
 $$;
 

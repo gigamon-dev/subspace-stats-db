@@ -51,31 +51,32 @@ begin
 	return query
 		select
 			 dt2.top_rank
-			,p.player_name
+			,dt2.player_name
 			,dt2.avg_rating
 		from(
 			select
 				 dense_rank() over(order by dt.avg_rating desc) as top_rank
-				,dt.player_id
+				,dt.player_name
 				,dt.avg_rating
 			from(
 				select
-					 pr.player_id
+					 p.player_name
 					,(pr.rating - l_initial_rating)::real / pvs.games_played::real as avg_rating
-				from ss.player_versus_stats as pvs
-				left outer join ss.player_rating as pr
-					on pvs.player_id = pr.player_id
-						and pvs.stat_period_id = pr.stat_period_id
-				where pvs.stat_period_id = p_stat_period_id
+				from ss.player_rating as pr
+				inner join ss.player as p
+					on pr.player_id = p.player_id
+				inner join ss.player_versus_stats as pvs
+					on pr.player_id = pvs.player_id
+						and pr.stat_period_id = pvs.stat_period_id
+				where pr.stat_period_id = p_stat_period_id
+					and p.player_name not like '^%' -- skip unauthenticated players
 					and pvs.games_played >= coalesce(p_min_games_played, 1)
 			) as dt
 		) as dt2
-		inner join ss.player as p
-			on dt2.player_id = p.player_id
 		where dt2.top_rank <= p_top
 		order by
 			 dt2.top_rank
-			,p.player_name;
+			,dt2.player_name;
 end;
 $$;
 

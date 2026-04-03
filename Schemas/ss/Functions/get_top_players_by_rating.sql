@@ -29,22 +29,23 @@ select * from ss.get_top_players_by_rating(16, 5);
 
 select
 	 dt.top_rank
-	,p.player_name
+	,dt.player_name
 	,dt.rating
 from(
 	select
 		 dense_rank() over(order by pr.rating desc)::integer as top_rank
-		,pr.player_id
+		,p.player_name
 		,pr.rating
 	from ss.player_rating as pr
+	inner join ss.player as p
+		on pr.player_id = p.player_id
 	where pr.stat_period_id = p_stat_period_id
+		and p.player_name not like '^%' -- skip unauthenticated players
 ) as dt
-inner join ss.player as p
-	on dt.player_id = p.player_id
 where dt.top_rank <= p_top
 order by
 	 dt.top_rank
-	,p.player_name;
+	,dt.player_name;
 
 $$;
 

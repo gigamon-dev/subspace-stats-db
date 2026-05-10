@@ -48,6 +48,7 @@ returns table(
 	,enemy_distance_samples ss.player_versus_stats.enemy_distance_samples%type
 	,team_distance_sum ss.player_versus_stats.team_distance_sum%type
 	,team_distance_samples ss.player_versus_stats.team_distance_samples%type
+	,rating_avg ss.player_versus_stats.rating_avg%type
 )
 language sql
 security definer
@@ -121,6 +122,7 @@ select
 	,pvs.enemy_distance_samples
 	,pvs.team_distance_sum
 	,pvs.team_distance_samples
+	,pvs.rating_avg
 from(
 	select p.player_id
 	from ss.player as p

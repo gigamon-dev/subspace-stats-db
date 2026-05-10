@@ -24,7 +24,10 @@ p_stat_period_id - Id of the stat period to refresh player stat data for.
 
 Usage:
 select ss.refresh_player_versus_stats(18);
+select ss.refresh_player_versus_stats(46);
+select ss.refresh_player_versus_stats(3);
 
+select * from ss.game_type
 select * from ss.game_mode;
 select * from ss.stat_period;
 select * from ss.stat_period_type;
@@ -88,6 +91,27 @@ begin
 		where l_stat_period_type_id = 2 -- is a League Season stat period
 			and g.stat_period_id = p_stat_period_id -- match on the specific stat period for the season
 	)
+	,cte_games_ordered as( -- order matters when calculating ratings (if the rating ever hits the minimum rating)
+		select
+			 cg.game_id
+			,row_number() over(order by upper(g.time_played), lower(g.time_played), cg.game_id) as game_order
+		from cte_games as cg
+		inner join ss.game as g
+			on cg.game_id = g.game_id
+	)
+	,cte_game_player_ratings as(
+		select
+			 cg.game_id
+			,vgtm.player_id
+			,sum(vgtm.rating_change) as rating_change -- in case the player played for multiple slots in the same game (normally not allowed, but maybe possible depending on rules)
+		from cte_games as cg
+		inner join ss.versus_game_team_member as vgtm
+			on cg.game_id = vgtm.game_id
+		where l_is_rating_enabled = true
+		group by 
+			 cg.game_id
+			,vgtm.player_id
+	)
 	,cte_insert_player_rating as(
 		insert into ss.player_rating(
 			 player_id
@@ -95,14 +119,49 @@ begin
 			,rating
 		)
 		select
-			 vgtm.player_id
+			 cgpr.player_id
 			,p_stat_period_id
-			,greatest(l_initial_rating + sum(vgtm.rating_change), l_minimum_rating) as rating
-		from cte_games as c
-		inner join ss.versus_game_team_member as vgtm
-			on c.game_id = vgtm.game_id
-		where l_is_rating_enabled = true
-		group by vgtm.player_id
+			,(	with recursive cte_rating(rating, game_order) as( -- sum the rating changes up in game order
+					(   -- get the first game in the period
+						select
+							 l_initial_rating + cgpr2.rating_change as rating -- start with the initial rating
+							,cgo.game_order
+						from cte_game_player_ratings as cgpr2
+						inner join cte_games_ordered as cgo
+							on cgpr2.game_id = cgo.game_id
+						where cgpr2.player_id = cgpr.player_id
+						order by cgo.game_order
+						limit 1
+					)
+					union all
+					(	-- recursively add the rating change from the next game
+						select
+							  greatest(dt.rating + cgpr3.rating_change, l_minimum_rating) as rating -- never go below the minimum rating
+							 ,cgo.game_order
+						from(
+							select
+								 cr.rating
+								,cr.game_order
+							from cte_rating as cr
+							order by cr.game_order desc
+							limit 1
+						) as dt
+						inner join cte_game_player_ratings as cgpr3
+							on cgpr3.player_id = cgpr.player_id
+						inner join cte_games_ordered as cgo
+							on cgpr3.game_id = cgo.game_id
+								and cgo.game_order > dt.game_order
+						order by cgo.game_order
+						limit 1
+					)
+				)
+				select cr.rating
+				from cte_rating as cr
+				order by cr.game_order desc -- the highest game order has the final rating
+				limit 1
+			) as rating
+		from cte_game_player_ratings as cgpr
+		group by player_id
 	)
 	insert into ss.player_versus_stats(
 		 player_id
@@ -149,6 +208,7 @@ begin
 		,enemy_distance_samples
 		,team_distance_sum
 		,team_distance_samples
+		,rating_sum
 	)
 	select
 		 dt.player_id
@@ -191,10 +251,11 @@ begin
 		,sum(dt.wasted_decoy) as wasted_decoy
 		,sum(dt.wasted_portal) as wasted_portal
 		,sum(dt.wasted_brick) as wasted_brick
-		,sum(enemy_distance_sum) as enemy_distance_sum
-		,sum(enemy_distance_samples) as enemy_distance_samples
-		,sum(team_distance_sum) as team_distance_sum
-		,sum(team_distance_samples) as team_distance_samples
+		,sum(dt.enemy_distance_sum) as enemy_distance_sum
+		,sum(dt.enemy_distance_samples) as enemy_distance_samples
+		,sum(dt.team_distance_sum) as team_distance_sum
+		,sum(dt.team_distance_samples) as team_distance_samples
+		,sum(dt.rating_change) as rating_sum
 	from(
 		select
 			 vgtm.game_id
@@ -245,10 +306,11 @@ begin
 			,vgtm.wasted_decoy
 			,vgtm.wasted_portal
 			,vgtm.wasted_brick
-			,enemy_distance_sum
-			,enemy_distance_samples
-			,team_distance_sum
-			,team_distance_samples
+			,vgtm.enemy_distance_sum
+			,vgtm.enemy_distance_samples
+			,vgtm.team_distance_sum
+			,vgtm.team_distance_samples
+			,vgtm.rating_change
 		from cte_games as c
 		inner join ss.game as g
 			on c.game_id = g.game_id

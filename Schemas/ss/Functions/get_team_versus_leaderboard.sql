@@ -8,6 +8,7 @@ returns table(
 	,player_name ss.player.player_name%type
 	,squad_name ss.squad.squad_name%type
 	,rating ss.player_rating.rating%type
+	,rating_avg ss.player_versus_stats.rating_avg%type
 	,games_played ss.player_versus_stats.games_played%type
 	,play_duration ss.player_versus_stats.play_duration%type
 	,wins ss.player_versus_stats.wins%type
@@ -52,6 +53,7 @@ select
 	,p.player_name
 	,s.squad_name
 	,pr.rating
+	,pvs.rating_avg
 	,pvs.games_played
 	,pvs.play_duration
 	,pvs.wins

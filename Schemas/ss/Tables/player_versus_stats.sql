@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS ss.player_versus_stats
     enemy_distance_samples bigint,
     team_distance_sum bigint,
     team_distance_samples bigint,
+    rating_sum bigint NOT NULL,
+    rating_avg real GENERATED ALWAYS AS (((rating_sum)::real / (games_played)::real)) STORED,
     CONSTRAINT player_versus_stats_pkey PRIMARY KEY (player_id, stat_period_id),
     CONSTRAINT player_versus_stats_player_id_fkey FOREIGN KEY (player_id)
         REFERENCES ss.player (player_id) MATCH SIMPLE
@@ -70,5 +72,15 @@ ALTER TABLE IF EXISTS ss.player_versus_stats
 CREATE INDEX IF NOT EXISTS player_versus_stats_stat_period_id_player_id_idx
     ON ss.player_versus_stats USING btree
     (stat_period_id ASC NULLS LAST, player_id ASC NULLS LAST)
-    WITH (deduplicate_items=True)
+    WITH (fillfactor=100, deduplicate_items=True)
+    TABLESPACE pg_default;
+-- Index: player_versus_stats_stat_period_id_rating_avg_player_id_idx
+
+-- DROP INDEX IF EXISTS ss.player_versus_stats_stat_period_id_rating_avg_player_id_idx;
+
+CREATE INDEX IF NOT EXISTS player_versus_stats_stat_period_id_rating_avg_player_id_idx
+    ON ss.player_versus_stats USING btree
+    (stat_period_id ASC NULLS LAST, rating_avg DESC NULLS FIRST)
+    INCLUDE(player_id)
+    WITH (fillfactor=100, deduplicate_items=True)
     TABLESPACE pg_default;
